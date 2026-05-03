@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horario de Clases</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f0f4f8, #e0e7ff);
+            font-family: 'Arial', sans-serif;
+        }
+        .container {
+            width: 100%;
+            max-width: 7xl;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .clock {
+            color: #3b82f6;
+            font-size: 1.5rem;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px 20px;
+            border-radius: 10px;
+            text-shadow: 0 0 3px #93c5fd;
+            animation: glow 1.5s ease-in-out infinite alternate;
+        }
+        @keyframes glow {
+            from { text-shadow: 0 0 3px #93c5fd; }
+            to { text-shadow: 0 0 6px #93c5fd; }
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+        .modal-content {
+            background: #ffffff;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            width: 90%;
+            max-width: 500px;
+            color: #1e293b;
+            border: 1px solid #e0e7ff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: none;
+            z-index: 100;
+            animation: fadeInOut 3s ease-in-out;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: 80px repeat(5, 1fr);
+            gap: 2px;
+            background: #e0e7ff;
+        }
+        .schedule-cell {
+            background: #ffffff;
+            border: 1px solid #e0e7ff;
+            padding: 0.5rem;
+            min-height: 80px;
+            position: relative;
+            transition: background 0.2s;
+        }
+        .schedule-cell:hover {
+            background: #f0f4f8;
+        }
+        .schedule-cell.current-time {
+            background: #dbeafe;
+            border-color: #93c5fd;
+        }
+        .time-slot {
+            background: #3b82f6;
+            color: #ffffff;
+            text-align: center;
+            padding: 0.5rem;
+            font-weight: bold;
+        }
+        .day-header {
+            background: #60a5fa;
+            color: #ffffff;
+            text-align: center;
+            padding: 0.5rem;
+            font-weight: bold;
+        }
+        .class-card {
+            padding: 0.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .class-card:hover {
+            transform: scale(1.05);
+        }
+        .class-card i {
+            font-size: 1.5rem;
+            color: #3b82f6;
+        }
+        .class-card span {
+            display: block;
+            font-size: 0.8rem;
+            color: #3b82f6;
+        }
+        .delete-btn {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            background: #ef4444;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="container bg-white shadow-lg rounded-lg p-6">
+        <div class="header">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Horario de Clases</h1>
+            <div id="clock" class="clock">03:34 AM</div>
+        </div>
+        <div class="flex space-x-4 mb-4">
+            <button id="addClassBtn" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">Agregar Clase</button>
+            <button id="settingsBtn" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition">Configurar Horarios</button>
+        </div>
+        <div id="scheduleGrid" class="schedule-grid"></div>
+        <div id="notification" class="notification">Siguiente hora</div>
+    </div>
+
+    <div id="classModal" class="modal">
+        <div class="modal-content">
+            <h2 class="text-xl font-bold mb-4">Agregar/Editar Clase</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Materia</label>
+                    <select id="classSubject" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-700">
+                        <option value="Matemáticas">Matemáticas</option>
+                        <option value="Lenguaje">Lenguaje</option>
+                        <option value="Sociales">Sociales</option>
+                        <option value="Biología">Biología</option>
+                        <option value="Filosofía">Filosofía</option>
+                        <option value="Física">Física</option>
+                        <option value="Química">Química</option>
+                        <option value="Educación Física">Educación Física</option>
+                        <option value="Ciencias Naturales">Ciencias Naturales</option>
+                        <option value="Religión">Religión</option>
+                        <option value="Ética">Ética</option>
+                        <option value="Inglés">Inglés</option>
+                        <option value="Taller">Taller</option>
+                        <option value="Producción Audiovisual">Producción Audiovisual</option>
+                        <option value="Informática">Informática</option>
+                        <option value="Labor Social">Labor Social</option>
+                        <option value="Libre">Libre</option>
+                        <option value="Cátedra de Paz">Cátedra de Paz</option>
+                        <option value="Descanso">Descanso</option>
+                    </select>
+                </div>
+                <div id="tallerOptions" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700">Tipo de Taller</label>
+                    <select id="tallerType" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-700">
+                        <option value="Sistemas">Sistemas</option>
+                        <option value="Mecánica Automotriz">Mecánica Automotriz</option>
+                        <option value="Industrial">Industrial</option>
+                        <option value="Electricidad">Electricidad</option>
+                        <option value="Gestión Empresarial">Gestión Empresarial</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Día</label>
+                    <select id="classDay" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-700">
+                        <option value="Lunes">Lunes</option>
+                        <option value="Martes">Martes</option>
+                        <option value="Miércoles">Miércoles</option>
+                        <option value="Jueves">Jueves</option>
+                        <option value="Viernes">Viernes</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Hora</label>
+                    <select id="classTime" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-700">
+                        <!-- Se llenará dinámicamente -->
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button id="deleteClassBtn" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition hidden">Eliminar</button>
+                    <button id="cancelClassBtn" class="bg-gray-400 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-500 transition">Cancelar</button>
+                    <button id="saveClassBtn" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <h2 class="text-xl font-bold mb-4">Configurar Horarios</h2>
+            <div id="timesList" class="space-y-2 mb-4"></div>
+            <div class="flex space-x-2">
+                <input id="newTime" type="time" class="border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-700">
+                <button id="addTimeBtn" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition">Agregar Hora</button>
+            </div>
+            <div class="flex justify-end mt-4">
+                <button id="closeSettingsBtn" class="bg-gray-400 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-500 transition">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const classModal = document.getElementById('classModal');
+        const settingsModal = document.getElementById('settingsModal');
+        const addClassBtn = document.getElementById('addClassBtn');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const cancelClassBtn = document.getElementById('cancelClassBtn');
+        const saveClassBtn = document.getElementById('saveClassBtn');
+        const deleteClassBtn = document.getElementById('deleteClassBtn');
+        const classSubjectSelect = document.getElementById('classSubject');
+        const tallerOptions = document.getElementById('tallerOptions');
+        const tallerTypeSelect = document.getElementById('tallerType');
+        const classDaySelect = document.getElementById('classDay');
+        const classTimeSelect = document.getElementById('classTime');
+        const scheduleGrid = document.getElementById('scheduleGrid');
+        const timesList = document.getElementById('timesList');
+        const newTimeInput = document.getElementById('newTime');
+        const addTimeBtn = document.getElementById('addTimeBtn');
+        const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+        const clock = document.getElementById('clock');
+        const notification = document.getElementById('notification');
+
+        const subjectIcons = {
+            'Matemáticas': 'fas fa-square-root-alt',
+            'Lenguaje': 'fas fa-book',
+            'Sociales': 'fas fa-globe-americas',
+            'Biología': 'fas fa-dna',
+            'Filosofía': 'fas fa-brain',
+            'Física': 'fas fa-atom',
+            'Química': 'fas fa-flask',
+            'Educación Física': 'fas fa-running',
+            'Ciencias Naturales': 'fas fa-leaf',
+            'Religión': 'fas fa-pray',
+            'Ética': 'fas fa-hand-holding-heart',
+            'Inglés': 'fas fa-language',
+            'Taller': 'fas fa-tools',
+            'Producción Audiovisual': 'fas fa-video',
+            'Informática': 'fas fa-laptop',
+            'Labor Social': 'fas fa-hands-helping',
+            'Libre': 'fas fa-comments',
+            'Cátedra de Paz': 'fas fa-peace',
+            'Descanso': 'fas fa-coffee'
+        };
+
+        let times = ['08:00', '09:00', '10:00', '11:00'];
+        let days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+        let schedule = {};
+        days.forEach(day => schedule[day] = {});
+
+        let editingDay = null;
+        let editingTime = null;
+        let lastTimeSlot = null;
+
+        function getColor(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            let colour = '#';
+            for (let i = 0; i < 3; i++) {
+                let value = (hash >> (i * 8)) & 0xFF;
+                colour += ('00' + value.toString(16)).substr(-2);
+            }
+            return colour;
+        }
+
+        function nextHour(time) {
+            const [h, m] = time.split(':').map(Number);
+            return `${String(h + 1).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        }
+
+        function getCurrentTimeSlot() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const currentTime = `${hours}:${minutes}`;
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+            clock.textContent = `${displayHours}:${minutes} ${ampm}`;
+            const currentSlot = times.find(time => {
+                const [startH, startM] = time.split(':').map(Number);
+                const [endH, endM] = nextHour(time).split(':').map(Number);
+                const [currH, currM] = currentTime.split(':').map(Number);
+                return (currH > startH || (currH === startH && currM >= startM)) && 
+                       (currH < endH || (currH === endH && currM < endM));
+            });
+            if (currentSlot && currentSlot !== lastTimeSlot) {
+                notification.style.display = 'block';
+                setTimeout(() => notification.style.display = 'none', 3000);
+                lastTimeSlot = currentSlot;
+            }
+            return currentSlot;
+        }
+
+        function renderGrid() {
+            scheduleGrid.innerHTML = '';
+            const currentTimeSlot = getCurrentTimeSlot();
+            const currentDayIndex = new Date().getDay() - 1;
+
+            const emptyHeader = document.createElement('div');
+            emptyHeader.className = 'schedule-cell';
+            scheduleGrid.appendChild(emptyHeader);
+
+            days.forEach(day => {
+                const dayHeader = document.createElement('div');
+                dayHeader.className = 'day-header';
+                dayHeader.textContent = day;
+                scheduleGrid.appendChild(dayHeader);
+            });
+
+            times.forEach(time => {
+                const timeSlot = document.createElement('div');
+                timeSlot.className = 'time-slot';
+                timeSlot.textContent = `${time} - ${nextHour(time)}`;
+                scheduleGrid.appendChild(timeSlot);
+
+                const isBreak = schedule[days[0]][time] === 'Descanso'; // Si es descanso en el primer día, aplica a todos
+                days.forEach((day, index) => {
+                    const cell = document.createElement('div');
+                    cell.className = `schedule-cell ${time === currentTimeSlot && currentDayIndex === index ? 'current-time' : ''}`;
+                    cell.dataset.day = day;
+                    cell.dataset.time = time;
+                    cell.addEventListener('click', () => {
+                        openClassModal(day, time);
+                        if (schedule[day][time]) {
+                            classSubjectSelect.value = schedule[day][time];
+                            if (schedule[day][time].startsWith('Taller - ')) {
+                                const [_, type] = schedule[day][time].split(' - ');
+                                classSubjectSelect.value = 'Taller';
+                                tallerTypeSelect.value = type;
+                                tallerOptions.classList.remove('hidden');
+                            } else {
+                                tallerOptions.classList.add('hidden');
+                            }
+                        }
+                    });
+                    scheduleGrid.appendChild(cell);
+
+                    if (isBreak) {
+                        schedule[day][time] = 'Descanso';
+                        const classCard = createClassCard('Descanso', day, time);
+                        cell.appendChild(classCard);
+                    } else {
+                        const subject = schedule[day][time];
+                        if (subject && subject !== 'Descanso') {
+                            const classCard = createClassCard(subject, day, time);
+                            cell.appendChild(classCard);
+                        }
+                    }
+                });
+            });
+        }
+
+        function createClassCard(subject, day, time) {
+            const classCard = document.createElement('div');
+            classCard.className = 'class-card';
+            const iconClass = subject.startsWith('Taller - ') ? subjectIcons['Taller'] : subjectIcons[subject] || 'fas fa-question';
+            classCard.innerHTML = `
+                <i class="${iconClass}"></i>
+                <span>${subject.startsWith('Taller - ') ? subject.split(' - ')[1] || subject : subject}</span>
+                <span class="delete-btn">X</span>
+            `;
+            classCard.querySelector('.delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                delete schedule[day][time];
+                renderGrid();
+            });
+            return classCard;
+        }
+
+        function openClassModal(day, time, existingSubject = null) {
+            classDaySelect.value = day;
+            classTimeSelect.value = time;
+            if (existingSubject) {
+                if (existingSubject.startsWith('Taller - ')) {
+                    const [_, type] = existingSubject.split(' - ');
+                    classSubjectSelect.value = 'Taller';
+                    tallerTypeSelect.value = type;
+                    tallerOptions.classList.remove('hidden');
+                } else {
+                    classSubjectSelect.value = existingSubject;
+                    tallerOptions.classList.add('hidden');
+                }
+                editingDay = day;
+                editingTime = time;
+                deleteClassBtn.classList.remove('hidden');
+            } else {
+                classSubjectSelect.value = 'Matemáticas';
+                tallerOptions.classList.add('hidden');
+                editingDay = null;
+                editingTime = null;
+                deleteClassBtn.classList.add('hidden');
+            }
+            populateTimeSelect();
+            classModal.style.display = 'flex';
+        }
+
+        function populateTimeSelect() {
+            classTimeSelect.innerHTML = '';
+            times.forEach(time => {
+                const option = document.createElement('option');
+                option.value = time;
+                option.textContent = `${time} - ${nextHour(time)}`;
+                classTimeSelect.appendChild(option);
+            });
+        }
+
+        classSubjectSelect.addEventListener('change', () => {
+            if (classSubjectSelect.value === 'Taller') {
+                tallerOptions.classList.remove('hidden');
+            } else {
+                tallerOptions.classList.add('hidden');
+            }
+        });
+
+        saveClassBtn.addEventListener('click', () => {
+            let subject = classSubjectSelect.value;
+            if (subject === 'Taller') {
+                subject += ` - ${tallerTypeSelect.value}`;
+            }
+            const day = classDaySelect.value;
+            const time = classTimeSelect.value;
+
+            if (!subject) return;
+
+            // Reemplazar directamente si ya existe una materia
+            if (schedule[day][time]) {
+                delete schedule[day][time];
+            }
+
+            // Aplicar descanso a toda la fila
+            if (subject === 'Descanso') {
+                days.forEach(d => {
+                    schedule[d][time] = 'Descanso';
+                });
+            } else {
+                schedule[day][time] = subject;
+                // Limpiar descansos en otros días si no es descanso
+                days.forEach(d => {
+                    if (d !== day && schedule[d][time] === 'Descanso') {
+                        delete schedule[d][time];
+                    }
+                });
+            }
+
+            renderGrid();
+            classModal.style.display = 'none';
+        });
+
+        deleteClassBtn.addEventListener('click', () => {
+            if (editingDay && editingTime) {
+                delete schedule[editingDay][editingTime];
+                // Limpiar toda la fila si era descanso
+                if (schedule[days[0]][editingTime] === 'Descanso') {
+                    times.forEach(t => days.forEach(d => delete schedule[d][t]));
+                }
+                renderGrid();
+                classModal.style.display = 'none';
+            }
+        });
+
+        cancelClassBtn.addEventListener('click', () => {
+            classModal.style.display = 'none';
+        });
+
+        addClassBtn.addEventListener('click', () => {
+            openClassModal('Lunes', times[0]);
+        });
+
+        settingsBtn.addEventListener('click', () => {
+            renderTimesList();
+            settingsModal.style.display = 'flex';
+        });
+
+        closeSettingsBtn.addEventListener('click', () => {
+            settingsModal.style.display = 'none';
+        });
+
+        addTimeBtn.addEventListener('click', () => {
+            const newTime = newTimeInput.value;
+            if (newTime && !times.includes(newTime)) {
+                times.push(newTime);
+                times.sort();
+                renderGrid();
+                renderTimesList();
+                newTimeInput.value = '';
+            }
+        });
+
+        function renderTimesList() {
+            timesList.innerHTML = '';
+            times.forEach(time => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center';
+                div.innerHTML = `
+                    <span class="text-gray-700">${time} - ${nextHour(time)}</span>
+                    <div>
+                        <button class="edit-time bg-yellow-500 text-white px-2 py-1 rounded mr-2" data-time="${time}">Editar</button>
+                        <button class="delete-time bg-red-500 text-white px-2 py-1 rounded" data-time="${time}">Eliminar</button>
+                    </div>
+                `;
+                timesList.appendChild(div);
+            });
+
+            document.querySelectorAll('.delete-time').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const time = btn.dataset.time;
+                    times = times.filter(t => t !== time);
+                    days.forEach(day => delete schedule[day][time]);
+                    renderGrid();
+                    renderTimesList();
+                });
+            });
+
+            document.querySelectorAll('.edit-time').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const oldTime = btn.dataset.time;
+                    const newTime = prompt('Nueva hora de inicio (HH:MM):', oldTime);
+                    if (newTime && newTime !== oldTime && !times.includes(newTime)) {
+                        const index = times.indexOf(oldTime);
+                        times[index] = newTime;
+                        times.sort();
+                        days.forEach(day => {
+                            if (schedule[day][oldTime]) {
+                                schedule[day][newTime] = schedule[day][oldTime];
+                                delete schedule[day][oldTime];
+                            }
+                        });
+                        renderGrid();
+                        renderTimesList();
+                    }
+                });
+            });
+        }
+
+        renderGrid();
+        populateTimeSelect();
+
+        setInterval(() => {
+            getCurrentTimeSlot();
+            renderGrid();
+        }, 1000);
+    </script>
+</body>
+</html>
